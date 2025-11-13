@@ -1,0 +1,151 @@
+# bots/bot_v2_test.py
+from __future__ import annotations
+from typing import List, Tuple, Optional
+import numpy as np
+import random
+
+# === EVOLVABLE PARAMETERS ===
+# These will be overwritten by the evolver
+PARAMS = {
+    "PREM_OPEN_MULT_MEAN": 3.5,
+    "STRONG_OPEN_MULT_MEAN": 2.5,
+    "MEDIUM_OPEN_FREQ": 0.4,
+    "MEDIUM_OPEN_MULT": 2.0,
+    "MEDIUM_CALL_CHEAP_FRAC": 0.2,
+    "POSTFLOP_BET_THRESHOLD": 0.5,
+    "POSTFLOP_BET_FREQ": 0.6,
+    "POSTFLOP_CALL_THRESHOLD": 0.3,
+    "POSTFLOP_CALL_POT_RATIO": 0.5
+}
+
+# Try to load evolved parameters
+try:
+    from evolved_params import PARAMS as EVOLVED_PARAMS
+    PARAMS.update(EVOLVED_PARAMS)
+    print("✅ Loaded evolved parameters")
+except ImportError:
+    print("ℹ️ Using default parameters")
+
+class BotV2Test:
+    def __init__(self):
+        self.name = "BotV2Test"
+    
+    def bet(self, state, memory=None):
+        # Your existing decide_action_fixed logic here
+        # but using PARAMS for all decisions
+        try:
+            my_index = state.index_to_action
+            my_stack = state.held_money[my_index]
+            my_current_bet = state.bet_money[my_index]
+            max_bet = max(state.bet_money)
+            call_amount = max_bet - my_current_bet
+            pot_size = sum(max(0, bet) for bet in state.bet_money)
+            can_check = (call_amount == 0)
+            is_preflop = (len(state.community_cards) == 0)
+            
+            my_cards = getattr(state, 'player_cards', [])
+            if not my_cards or len(my_cards) < 2:
+                if can_check:
+                    return 0, memory
+                else:
+                    return min(call_amount, my_stack) if call_amount <= state.big_blind * 2 else -1, memory
+
+            # PREFLOP STRATEGY
+            if is_preflop:
+                hand_tier = self.preflop_tier_fixed(my_cards)
+                
+                if can_check:
+                    if hand_tier == "premium":
+                        raise_amt = min(int(state.big_blind * PARAMS["PREM_OPEN_MULT_MEAN"]), my_stack)
+                        return max(raise_amt, state.big_blind * 2), memory
+                    elif hand_tier == "strong":
+                        raise_amt = min(int(state.big_blind * PARAMS["STRONG_OPEN_MULT_MEAN"]), my_stack)
+                        return max(raise_amt, state.big_blind * 2), memory
+                    elif hand_tier == "medium":
+                        if random.random() < PARAMS["MEDIUM_OPEN_FREQ"]:
+                            raise_amt = min(int(state.big_blind * PARAMS["MEDIUM_OPEN_MULT"]), my_stack)
+                            return max(raise_amt, state.big_blind * 2), memory
+                        else:
+                            return 0, memory
+                    else:
+                        return 0, memory
+                else:
+                    if hand_tier == "premium":
+                        if call_amount <= my_stack * 0.5:
+                            min_raise = call_amount * 2
+                            return min(min_raise, my_stack), memory
+                        else:
+                            return min(call_amount, my_stack), memory
+                    elif hand_tier == "strong":
+                        return min(call_amount, my_stack), memory
+                    elif hand_tier == "medium":
+                        if call_amount <= state.big_blind * (3 + PARAMS["MEDIUM_CALL_CHEAP_FRAC"] * 10):
+                            return min(call_amount, my_stack), memory
+                        else:
+                            return -1, memory
+                    else:
+                        if call_amount <= state.big_blind:
+                            return min(call_amount, my_stack), memory
+                        else:
+                            return -1, memory
+
+            # POSTFLOP STRATEGY
+            else:
+                hand_strength = self.get_hand_strength_simple(my_cards)
+                
+                if can_check:
+                    if hand_strength > PARAMS["POSTFLOP_BET_THRESHOLD"]:
+                        bet_size = min(int(pot_size * 0.6), my_stack)
+                        return max(bet_size, state.big_blind), memory
+                    elif hand_strength > 0.3 and random.random() < PARAMS["POSTFLOP_BET_FREQ"]:
+                        bet_size = min(int(pot_size * 0.4), my_stack)
+                        return max(bet_size, state.big_blind), memory
+                    else:
+                        return 0, memory
+                else:
+                    if hand_strength > PARAMS["POSTFLOP_CALL_THRESHOLD"]:
+                        return min(call_amount, my_stack), memory
+                    elif hand_strength > 0.2:
+                        if call_amount <= pot_size * PARAMS["POSTFLOP_CALL_POT_RATIO"]:
+                            return min(call_amount, my_stack), memory
+                        else:
+                            return -1, memory
+                    else:
+                        if call_amount <= state.big_blind * 2:
+                            return min(call_amount, my_stack), memory
+                        else:
+                            return -1, memory
+        
+        except Exception as e:
+            # Fallback logic
+            try:
+                my_index = state.index_to_action
+                my_current_bet = state.bet_money[my_index]
+                max_bet = max(state.bet_money)
+                call_amount = max_bet - my_current_bet
+                
+                if call_amount == 0:
+                    return 0, memory
+                elif call_amount <= state.big_blind * 3:
+                    return min(call_amount, state.held_money[my_index]), memory
+                else:
+                    return -1, memory
+            except:
+                return 0, memory
+
+    def preflop_tier_fixed(self, hole: List[str]) -> str:
+        # Your existing preflop_tier_fixed function
+        if len(hole) < 2:
+            return "trash"
+        # ... include your full preflop_tier_fixed logic here
+        return "premium"  # simplified for example
+
+    def get_hand_strength_simple(self, hole: List[str]) -> float:
+        # Your existing get_hand_strength_simple function  
+        if len(hole) < 2:
+            return 0.1
+        # ... include your full get_hand_strength_simple logic here
+        return 0.5  # simplified for example
+
+# Required export
+BOT_CLASS = BotV2Test
