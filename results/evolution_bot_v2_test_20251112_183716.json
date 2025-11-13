@@ -1,0 +1,23 @@
+{
+  "evolving_bot": "bot_v2_test",
+  "opponents": [
+    "calling_station_bot.pycalling_station_bot",
+    "loose_aggressive_bot",
+    "tight_bot"
+  ],
+  "best_fitness": 0.7777777777777778,
+  "best_strategy": {
+    "PREM_OPEN_MULT_MEAN": 3.93,
+    "STRONG_OPEN_MULT_MEAN": 3.98,
+    "MEDIUM_OPEN_FREQ": 0.308,
+    "MEDIUM_OPEN_MULT": 2.95,
+    "MEDIUM_CALL_CHEAP_FRAC": 0.257,
+    "POSTFLOP_BET_THRESHOLD": 0.597,
+    "POSTFLOP_BET_FREQ": 0.645,
+    "POSTFLOP_CALL_THRESHOLD": 0.224,
+    "POSTFLOP_CALL_POT_RATIO": 0.746
+  },
+  "timestamp": "20251112_183716",
+  "generations": 25,
+  "population_size": 12
+}
